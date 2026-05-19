@@ -263,6 +263,71 @@ def calculate_PW_pj(ds: xr.Dataset, percentile: int, year_start: int = 1979, yea
     return PW_pj
 
 
+def compute_fullyear_percentiles(ds: xr.Dataset, variable: str, percentile: float,
+                                 year_start: int, year_end: int):
+    """
+    Input: ds[variable] [Grid, Day] - daily variable at the grid level
+    Output: {TX|TN}{percentile_name} [Grid] - p-th percentile of variable
+            computed unconditionally over all days in the reference period
+
+    Filters to the reference period and computes the p-th percentile across
+    all days, yielding one value per grid cell with no time or day-of-year dimension.
+
+    Parameters
+    ----------
+    ds : xr.Dataset
+        Lazily-loaded ERA5 dataset containing `variable` with a `valid_time` dimension.
+    variable : str
+        Variable name in ds (e.g. 't_min', 't_max').
+    percentile : float
+        Percentile to compute (e.g. 10, 90, 97.5).
+    year_start : int
+        First year of the reference period (inclusive).
+    year_end : int
+        Last year of the reference period (inclusive).
+
+    Returns
+    -------
+    xr.Dataset
+        Lazy Dataset with variable `{TX|TN}{percentile_name}`
+        and dimensions (latitude, longitude).
+    """
+
+    VARIABLE_ALIASES = {'t_min': 'TN', 't_max': 'TX'}
+    var_alias = VARIABLE_ALIASES.get(variable, variable)
+    perc_str = str(percentile).replace('.', '_')
+    var_name = f'{var_alias}{perc_str}'
+    logger.info(f"Calculating {var_name} ({percentile}th percentile of {variable}, "
+                f"full-year, reference period {year_start}-{year_end})")
+
+    if variable not in ds:
+        raise KeyError(f"'{variable}' not found in dataset. Available variables: {list(ds.data_vars)}")
+
+    var_data = ds[variable].sel(valid_time=slice(f"{year_start}-01-01", f"{year_end}-12-31"))
+    logger.info(f"Filtered to reference period: {len(var_data.valid_time)} time steps")
+
+    logger.info(f"Building calculations graph...")
+
+    result = (
+        var_data
+        .quantile(percentile / 100.0, dim='valid_time', skipna=True)
+        .drop_vars('quantile')
+        .rename(var_name)
+        .assign_attrs(
+            long_name=f'{percentile}th percentile of {variable} over {year_start}-{year_end} (full-year)',
+            units=ds[variable].attrs.get('units', ''),
+            percentile=percentile,
+            year_start=year_start,
+            year_end=year_end,
+        )
+        .to_dataset()
+    )
+
+    logger.info(f"Calculations graph is ready. Call .compute() to run the actual calculations.")
+
+    return result
+
+
 # N. CHUNKS must be at least 2x n. cores (be careful not to have too big of chunks tho)
 # Rechunking for percentiles calculations
 ds_perc = ds.chunk({"valid_time": -1, "latitude": 500, "longitude": 800})
@@ -293,7 +358,7 @@ temp_perc = xr.merge([TN10p5w, TX10p5w, TN90p5w, TX90p5w,
                       TN90p15w, TX90p15w, TN10p15w, TX10p15w])
 
 logger.info("Writing temperature percentiles to disk..")
-encoding = {var: {'zlib': True, 'complevel': 8, 'dtype': 'float32'} for var in df.data_vars}
+encoding = {var: {'zlib': True, 'complevel': 8, 'dtype': 'float32'} for var in temp_perc.data_vars}
 temp_perc.to_netcdf(OUT_PERC / "temp_percentiles.nc", encoding=encoding)
 logger.info("Done.")
 
@@ -318,5 +383,54 @@ logger.info("Done.")
 del TN10p5w, TX10p5w, TN90p5w, TX90p5w, TN90p15w, TX90p15w, TN10p15w, TX10p15w
 del PW_95p, PW_99p
 del temp_perc, wet_days_perc
+
+# Calculating full-year temperature percentiles
+TX1    = compute_fullyear_percentiles(ds_perc, 't_max',  1,   PERC_YEAR_START, PERC_YEAR_END)
+TX2_5  = compute_fullyear_percentiles(ds_perc, 't_max',  2.5, PERC_YEAR_START, PERC_YEAR_END)
+TX5    = compute_fullyear_percentiles(ds_perc, 't_max',  5,   PERC_YEAR_START, PERC_YEAR_END)
+TX10   = compute_fullyear_percentiles(ds_perc, 't_max', 10,   PERC_YEAR_START, PERC_YEAR_END)
+TX90   = compute_fullyear_percentiles(ds_perc, 't_max', 90,   PERC_YEAR_START, PERC_YEAR_END)
+TX95   = compute_fullyear_percentiles(ds_perc, 't_max', 95,   PERC_YEAR_START, PERC_YEAR_END)
+TX97_5 = compute_fullyear_percentiles(ds_perc, 't_max', 97.5, PERC_YEAR_START, PERC_YEAR_END)
+TX99   = compute_fullyear_percentiles(ds_perc, 't_max', 99,   PERC_YEAR_START, PERC_YEAR_END)
+TN1    = compute_fullyear_percentiles(ds_perc, 't_min',  1,   PERC_YEAR_START, PERC_YEAR_END)
+TN2_5  = compute_fullyear_percentiles(ds_perc, 't_min',  2.5, PERC_YEAR_START, PERC_YEAR_END)
+TN5    = compute_fullyear_percentiles(ds_perc, 't_min',  5,   PERC_YEAR_START, PERC_YEAR_END)
+TN10   = compute_fullyear_percentiles(ds_perc, 't_min', 10,   PERC_YEAR_START, PERC_YEAR_END)
+TN90   = compute_fullyear_percentiles(ds_perc, 't_min', 90,   PERC_YEAR_START, PERC_YEAR_END)
+TN95   = compute_fullyear_percentiles(ds_perc, 't_min', 95,   PERC_YEAR_START, PERC_YEAR_END)
+TN97_5 = compute_fullyear_percentiles(ds_perc, 't_min', 97.5, PERC_YEAR_START, PERC_YEAR_END)
+TN99   = compute_fullyear_percentiles(ds_perc, 't_min', 99,   PERC_YEAR_START, PERC_YEAR_END)
+
+logger.info("Computing full-year temperature percentiles...")
+with ProgressBar():
+    TX1    = TX1.compute()
+    TX2_5  = TX2_5.compute()
+    TX5    = TX5.compute()
+    TX10   = TX10.compute()
+    TX90   = TX90.compute()
+    TX95   = TX95.compute()
+    TX97_5 = TX97_5.compute()
+    TX99   = TX99.compute()
+    TN1    = TN1.compute()
+    TN2_5  = TN2_5.compute()
+    TN5    = TN5.compute()
+    TN10   = TN10.compute()
+    TN90   = TN90.compute()
+    TN95   = TN95.compute()
+    TN97_5 = TN97_5.compute()
+    TN99   = TN99.compute()
+
+temp_perc_fullyear = xr.merge([TX1, TX2_5, TX5, TX10, TX90, TX95, TX97_5, TX99,
+                               TN1, TN2_5, TN5, TN10, TN90, TN95, TN97_5, TN99])
+
+logger.info("Writing full-year temperature percentiles to disk...")
+encoding = {var: {'zlib': True, 'complevel': 8, 'dtype': 'float32'} for var in temp_perc_fullyear.data_vars}
+temp_perc_fullyear.to_netcdf(OUT_PERC / "temp_percentiles_fullyear.nc", encoding=encoding)
+logger.info("Done.")
+
+del TX1, TX2_5, TX5, TX10, TX90, TX95, TX97_5, TX99
+del TN1, TN2_5, TN5, TN10, TN90, TN95, TN97_5, TN99
+del temp_perc_fullyear
 
 logger.info("Everything done.")

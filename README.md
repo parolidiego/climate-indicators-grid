@@ -1,6 +1,6 @@
 # ERA5 Climate Indicators Pipeline
 
-This repository contains a end-to-end pipeline that 
+This repository contains a end-to-end pipeline that:
 
 1) Downloads hourly temperature and accumulated precipitation data from ERA5-Land reanalysis (globally, at 0.1° x 0.1° resolution, from 1950 to 2023) through the Copernicus Climate Data Store (CDS) API 
 
