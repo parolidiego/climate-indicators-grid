@@ -1365,7 +1365,7 @@ def calculate_WSD(ds: xr.Dataset, ds_TX90p5w: xr.Dataset):
     logger.info("Calculations graph is ready. Call .compute() to run the actual calculations.")
     return result
 
-def calculate_TN0_TX35_TX40(ds: xr.Dataset):
+def calculate_TNnumber_TXnumber(ds: xr.Dataset):
     """
     Input: t_min [Grid, Day] - daily minimum 2-metre temperature at the grid level
            t_max [Grid, Day] - daily maximum 2-metre temperature at the grid level
@@ -5330,7 +5330,7 @@ day_cw_abs = calculate_day_coldwaves_abs(ds, temp_perc[['TX_10p_15w']])
 night_cw_abs = calculate_night_coldwaves_abs(ds, temp_perc[['TN_10p_15w']])
 CSD_abs = calculate_CSD_abs(ds, temp_perc[['TN_10p_5w']])
 WSD_abs = calculate_WSD_abs(ds, temp_perc[['TX_90p_5w']])
-TN0_TX35_TX40 = calculate_TN0_TX35_TX40(ds)
+TNnumber_TXnumber = calculate_TNnumber_TXnumber(ds)
 TM_bins = calculate_TM_bins(ds)
 PA = calculate_PA(ds)
 PWT = calculate_PWT(PW_d, ds)
@@ -5361,7 +5361,7 @@ CSD_abs_wy      = calculate_CSD_abs_wy(ds, temp_perc_wy[['TN5', 'TN10']])
 
 # Merge all lazy graphs into one dataset
 yearly_ds = xr.merge([TM, TX, TN, TNN_TXX, TVAR, DTR, coldwarm,
-                      day_hw, night_hw, day_cw, night_cw, CSD, WSD, TN0_TX35_TX40, TM_bins,
+                      day_hw, night_hw, day_cw, night_cw, CSD, WSD, TNnumber_TXnumber, TM_bins,
                       coldwarm_abs, day_hw_abs, night_hw_abs, day_cw_abs, night_cw_abs, CSD_abs, WSD_abs,
                       PA, PWT, W, PWA, PVAR, PWVAR,
                       P95WT_P99WT, consec_counts, consec_totals,
@@ -5382,7 +5382,7 @@ for yr in yearly_ds['year'].values:
     del yr_ds
 
 del TM, TX, TN, TNN_TXX, TVAR, DTR, coldwarm
-del day_hw, night_hw, day_cw, night_cw, CSD, WSD, TN0_TX35_TX40, TM_bins
+del day_hw, night_hw, day_cw, night_cw, CSD, WSD, TNnumber_TXnumber, TM_bins
 del coldwarm_abs, day_hw_abs, night_hw_abs, day_cw_abs, night_cw_abs, CSD_abs, WSD_abs
 del PA, PWT, W, PWA, PVAR, PWVAR
 del P95WT_P99WT, consec_counts, consec_totals, PX1_PX5, PXM_PNM, P_bins
