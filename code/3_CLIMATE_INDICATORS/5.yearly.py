@@ -1445,6 +1445,77 @@ def calculate_TNnumber_TXnumber(ds: xr.Dataset):
 
     return xr.Dataset({'TN0': TN0, 'TNm5': TNm5, 'TNm10': TNm10, 'TX30': TX30, 'TX35': TX35, 'TX40': TX40})
 
+def calculate_TX_cold_thresholds(ds: xr.Dataset):
+    """
+    Input: t_max [Grid, Day] - daily maximum 2-metre temperature at the grid level
+    Output: TX10  [Grid, Year] - number of days with t_max < 10°C
+            TX5   [Grid, Year] - number of days with t_max < 5°C
+            TX0   [Grid, Year] - number of days with t_max < 0°C
+            TXm5  [Grid, Year] - number of days with t_max < -5°C
+            TXm10 [Grid, Year] - number of days with t_max < -10°C
+
+    Counts days per year where daily maximum temperature is below fixed cold thresholds.
+    Unlike percentile-based counts, Feb 29 is retained because thresholds are not day-of-year specific.
+
+    Parameters
+    ----------
+    ds : xr.Dataset
+        Lazily-loaded ERA5 dataset containing `t_max` with
+        a `valid_time` dimension (daily frequency).
+
+    Returns
+    -------
+    xr.Dataset
+        Lazy dataset with variables TX10, TX5, TX0, TXm5, TXm10
+        and dimensions (year, latitude, longitude).
+    """
+    logger.info("Calculating TX10, TX5, TX0, TXm5, TXm10 (fixed cold temperature threshold counts at grid cell level)")
+
+    if 't_max' not in ds:
+        raise KeyError(f"'t_max' not found in dataset. Available variables: {list(ds.data_vars)}")
+
+    years = np.unique(ds['valid_time'].dt.year.values)
+
+    TX10 = (
+        (ds['t_max'] < 10).where(ds['t_max'].notnull()).resample(valid_time='YE').sum(min_count=1)
+        .rename({'valid_time': 'year'}).assign_coords(year=years)
+        .drop_attrs()
+        .assign_attrs(long_name='Number of days with daily maximum temperature below 10°C', units='days')
+        .rename('TX10')
+    )
+    TX5 = (
+        (ds['t_max'] < 5).where(ds['t_max'].notnull()).resample(valid_time='YE').sum(min_count=1)
+        .rename({'valid_time': 'year'}).assign_coords(year=years)
+        .drop_attrs()
+        .assign_attrs(long_name='Number of days with daily maximum temperature below 5°C', units='days')
+        .rename('TX5')
+    )
+    TX0 = (
+        (ds['t_max'] < 0).where(ds['t_max'].notnull()).resample(valid_time='YE').sum(min_count=1)
+        .rename({'valid_time': 'year'}).assign_coords(year=years)
+        .drop_attrs()
+        .assign_attrs(long_name='Number of days with daily maximum temperature below 0°C', units='days')
+        .rename('TX0')
+    )
+    TXm5 = (
+        (ds['t_max'] < -5).where(ds['t_max'].notnull()).resample(valid_time='YE').sum(min_count=1)
+        .rename({'valid_time': 'year'}).assign_coords(year=years)
+        .drop_attrs()
+        .assign_attrs(long_name='Number of days with daily maximum temperature below -5°C', units='days')
+        .rename('TXm5')
+    )
+    TXm10 = (
+        (ds['t_max'] < -10).where(ds['t_max'].notnull()).resample(valid_time='YE').sum(min_count=1)
+        .rename({'valid_time': 'year'}).assign_coords(year=years)
+        .drop_attrs()
+        .assign_attrs(long_name='Number of days with daily maximum temperature below -10°C', units='days')
+        .rename('TXm10')
+    )
+
+    logger.info("Calculations graph is ready. Call .compute() to run the actual calculations.")
+
+    return xr.Dataset({'TX10': TX10, 'TX5': TX5, 'TX0': TX0, 'TXm5': TXm5, 'TXm10': TXm10})
+
 def calculate_TM_bins(ds: xr.Dataset):
     """
     Input: t_mean [Grid, Day] - daily mean 2-metre temperature at the grid level
@@ -2284,9 +2355,12 @@ def calculate_P_bins(ds: xr.Dataset):
     Output: P_1_to_10  [Grid, Year] - number of days with 1mm <= precipitation < 10mm
             P_10_to_20 [Grid, Year] - number of days with 10mm <= precipitation < 20mm
             P_above_20 [Grid, Year] - number of days with precipitation >= 20mm
+            P_above_10 [Grid, Year] - number of days with precipitation >= 10mm
+            P_20_to_50 [Grid, Year] - number of days with precipitation in [20mm, 50mm)
+            P_above_50 [Grid, Year] - number of days with precipitation >= 50mm
 
     Bins are left-inclusive, right-exclusive. Thresholds are applied in metres
-    (1mm = 0.001m, 10mm = 0.010m, 20mm = 0.020m).
+    (1mm = 0.001m, 10mm = 0.010m, 20mm = 0.020m, 50mm = 0.050m).
 
     Parameters
     ----------
@@ -2297,7 +2371,8 @@ def calculate_P_bins(ds: xr.Dataset):
     Returns
     -------
     xr.Dataset
-        Lazy dataset with variables P_1_to_10, P_10_to_20, P_above_20
+        Lazy dataset with variables P_1_to_10, P_10_to_20, P_above_20,
+        P_above_10, P_20_to_50, P_above_50
         and dimensions (year, latitude, longitude).
     """
     logger.info("Calculating P bin counts (daily precipitation distribution at grid cell level)")
@@ -2312,6 +2387,9 @@ def calculate_P_bins(ds: xr.Dataset):
         ('P_1_to_10',  0.001, 0.010, 'Number of days with daily precipitation in [1mm, 10mm)'),
         ('P_10_to_20', 0.010, 0.020, 'Number of days with daily precipitation in [10mm, 20mm)'),
         ('P_above_20', 0.020, None,  'Number of days with daily precipitation >= 20mm'),
+        ('P_above_10', 0.010, None,  'Number of days with daily precipitation >= 10mm'),
+        ('P_20_to_50', 0.020, 0.050, 'Number of days with daily precipitation in [20mm, 50mm)'),
+        ('P_above_50', 0.050, None,  'Number of days with daily precipitation >= 50mm'),
     ]
 
     result = {}
@@ -5331,6 +5409,7 @@ night_cw_abs = calculate_night_coldwaves_abs(ds, temp_perc[['TN_10p_15w']])
 CSD_abs = calculate_CSD_abs(ds, temp_perc[['TN_10p_5w']])
 WSD_abs = calculate_WSD_abs(ds, temp_perc[['TX_90p_5w']])
 TNnumber_TXnumber = calculate_TNnumber_TXnumber(ds)
+TX_cold = calculate_TX_cold_thresholds(ds)
 TM_bins = calculate_TM_bins(ds)
 PA = calculate_PA(ds)
 PWT = calculate_PWT(PW_d, ds)
@@ -5361,7 +5440,7 @@ CSD_abs_wy      = calculate_CSD_abs_wy(ds, temp_perc_wy[['TN5', 'TN10']])
 
 # Merge all lazy graphs into one dataset
 yearly_ds = xr.merge([TM, TX, TN, TNN_TXX, TVAR, DTR, coldwarm,
-                      day_hw, night_hw, day_cw, night_cw, CSD, WSD, TNnumber_TXnumber, TM_bins,
+                      day_hw, night_hw, day_cw, night_cw, CSD, WSD, TNnumber_TXnumber, TX_cold, TM_bins,
                       coldwarm_abs, day_hw_abs, night_hw_abs, day_cw_abs, night_cw_abs, CSD_abs, WSD_abs,
                       PA, PWT, W, PWA, PVAR, PWVAR,
                       P95WT_P99WT, consec_counts, consec_totals,
@@ -5382,7 +5461,7 @@ for yr in yearly_ds['year'].values:
     del yr_ds
 
 del TM, TX, TN, TNN_TXX, TVAR, DTR, coldwarm
-del day_hw, night_hw, day_cw, night_cw, CSD, WSD, TNnumber_TXnumber, TM_bins
+del day_hw, night_hw, day_cw, night_cw, CSD, WSD, TNnumber_TXnumber, TX_cold, TM_bins
 del coldwarm_abs, day_hw_abs, night_hw_abs, day_cw_abs, night_cw_abs, CSD_abs, WSD_abs
 del PA, PWT, W, PWA, PVAR, PWVAR
 del P95WT_P99WT, consec_counts, consec_totals, PX1_PX5, PXM_PNM, P_bins
