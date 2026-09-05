@@ -1519,22 +1519,26 @@ def calculate_TX_cold_thresholds(ds: xr.Dataset):
 def calculate_TM_bins(ds: xr.Dataset):
     """
     Input: t_mean [Grid, Day] - daily mean 2-metre temperature at the grid level
-    Output: 15 variables [Grid, Year] counting days falling in each 3°C-wide bin:
-            TM_below_minus9     - t_mean < -9°C
-            TM_minus6_to_minus9 - -9 <= t_mean < -6°C
-            TM_minus3_to_minus6 - -6 <= t_mean < -3°C
-            TM_minus3_to_0      - -3 <= t_mean < 0°C
-            TM_0_to_3           - 0 <= t_mean < 3°C
-            TM_3_to_6           - 3 <= t_mean < 6°C
-            TM_6_to_9           - 6 <= t_mean < 9°C
-            TM_9_to_12          - 9 <= t_mean < 12°C
-            TM_12_to_15         - 12 <= t_mean < 15°C
-            TM_15_to_18         - 15 <= t_mean < 18°C
-            TM_18_to_21         - 18 <= t_mean < 21°C
-            TM_21_to_24         - 21 <= t_mean < 24°C
-            TM_24_to_27         - 24 <= t_mean < 27°C
-            TM_27_to_30         - 27 <= t_mean < 30°C
-            TM_above_30         - t_mean >= 30°C
+    Output: 19 variables [Grid, Year] counting days falling in each 3°C-wide bin:
+            TM_below_minus_15      - t_mean < -15°C
+            TM_minus12_to_minus15  - -15 <= t_mean < -12°C
+            TM_minus9_to_minus12   - -12 <= t_mean < -9°C
+            TM_minus6_to_minus9    - -9 <= t_mean < -6°C
+            TM_minus3_to_minus6    - -6 <= t_mean < -3°C
+            TM_minus3_to_0         - -3 <= t_mean < 0°C
+            TM_0_to_3              - 0 <= t_mean < 3°C
+            TM_3_to_6              - 3 <= t_mean < 6°C
+            TM_6_to_9              - 6 <= t_mean < 9°C
+            TM_9_to_12             - 9 <= t_mean < 12°C
+            TM_12_to_15            - 12 <= t_mean < 15°C
+            TM_15_to_18            - 15 <= t_mean < 18°C
+            TM_18_to_21            - 18 <= t_mean < 21°C
+            TM_21_to_24            - 21 <= t_mean < 24°C
+            TM_24_to_27            - 24 <= t_mean < 27°C
+            TM_27_to_30            - 27 <= t_mean < 30°C
+            TM_30_to_33            - 30 <= t_mean < 33°C
+            TM_33_to_36            - 33 <= t_mean < 36°C
+            TM_above_36            - t_mean >= 36°C
 
     Bins are left-inclusive, right-exclusive. Feb 29 is retained because thresholds are
     not day-of-year specific.
@@ -1548,7 +1552,7 @@ def calculate_TM_bins(ds: xr.Dataset):
     Returns
     -------
     xr.Dataset
-        Lazy dataset with 15 TM_bin variables and dimensions (year, latitude, longitude).
+        Lazy dataset with 19 TM_bin variables and dimensions (year, latitude, longitude).
     """
     logger.info("Calculating TM bin counts (daily mean temperature distribution at grid cell level)")
 
@@ -1559,21 +1563,259 @@ def calculate_TM_bins(ds: xr.Dataset):
     tm = ds['t_mean']
 
     bins = [
-        ('TM_below_minus9',     None, -9,  'Number of days with daily mean temperature below -9°C'),
-        ('TM_minus6_to_minus9',   -9, -6,  'Number of days with daily mean temperature in [-9°C, -6°C)'),
-        ('TM_minus3_to_minus6',   -6, -3,  'Number of days with daily mean temperature in [-6°C, -3°C)'),
-        ('TM_minus3_to_0',        -3,  0,  'Number of days with daily mean temperature in [-3°C, 0°C)'),
-        ('TM_0_to_3',              0,  3,  'Number of days with daily mean temperature in [0°C, 3°C)'),
-        ('TM_3_to_6',              3,  6,  'Number of days with daily mean temperature in [3°C, 6°C)'),
-        ('TM_6_to_9',              6,  9,  'Number of days with daily mean temperature in [6°C, 9°C)'),
-        ('TM_9_to_12',             9, 12,  'Number of days with daily mean temperature in [9°C, 12°C)'),
-        ('TM_12_to_15',           12, 15,  'Number of days with daily mean temperature in [12°C, 15°C)'),
-        ('TM_15_to_18',           15, 18,  'Number of days with daily mean temperature in [15°C, 18°C)'),
-        ('TM_18_to_21',           18, 21,  'Number of days with daily mean temperature in [18°C, 21°C)'),
-        ('TM_21_to_24',           21, 24,  'Number of days with daily mean temperature in [21°C, 24°C)'),
-        ('TM_24_to_27',           24, 27,  'Number of days with daily mean temperature in [24°C, 27°C)'),
-        ('TM_27_to_30',           27, 30,  'Number of days with daily mean temperature in [27°C, 30°C)'),
-        ('TM_above_30',           30, None, 'Number of days with daily mean temperature above 30°C'),
+        ('TM_below_minus_15',     None, -15, 'Number of days with daily mean temperature below -15°C'),
+        ('TM_minus12_to_minus15', -15,  -12, 'Number of days with daily mean temperature in [-15°C, -12°C)'),
+        ('TM_minus9_to_minus12',  -12,   -9, 'Number of days with daily mean temperature in [-12°C, -9°C)'),
+        ('TM_minus6_to_minus9',    -9,   -6, 'Number of days with daily mean temperature in [-9°C, -6°C)'),
+        ('TM_minus3_to_minus6',    -6,   -3, 'Number of days with daily mean temperature in [-6°C, -3°C)'),
+        ('TM_minus3_to_0',         -3,    0, 'Number of days with daily mean temperature in [-3°C, 0°C)'),
+        ('TM_0_to_3',               0,    3, 'Number of days with daily mean temperature in [0°C, 3°C)'),
+        ('TM_3_to_6',               3,    6, 'Number of days with daily mean temperature in [3°C, 6°C)'),
+        ('TM_6_to_9',               6,    9, 'Number of days with daily mean temperature in [6°C, 9°C)'),
+        ('TM_9_to_12',              9,   12, 'Number of days with daily mean temperature in [9°C, 12°C)'),
+        ('TM_12_to_15',            12,   15, 'Number of days with daily mean temperature in [12°C, 15°C)'),
+        ('TM_15_to_18',            15,   18, 'Number of days with daily mean temperature in [15°C, 18°C)'),
+        ('TM_18_to_21',            18,   21, 'Number of days with daily mean temperature in [18°C, 21°C)'),
+        ('TM_21_to_24',            21,   24, 'Number of days with daily mean temperature in [21°C, 24°C)'),
+        ('TM_24_to_27',            24,   27, 'Number of days with daily mean temperature in [24°C, 27°C)'),
+        ('TM_27_to_30',            27,   30, 'Number of days with daily mean temperature in [27°C, 30°C)'),
+        ('TM_30_to_33',            30,   33, 'Number of days with daily mean temperature in [30°C, 33°C)'),
+        ('TM_33_to_36',            33,   36, 'Number of days with daily mean temperature in [33°C, 36°C)'),
+        ('TM_above_36',            36, None, 'Number of days with daily mean temperature above 36°C'),
+    ]
+
+    result = {}
+    for name, lower, upper, long_name in bins:
+        if lower is None:
+            cond = tm < upper
+        elif upper is None:
+            cond = tm >= lower
+        else:
+            cond = (tm >= lower) & (tm < upper)
+
+        result[name] = (
+            cond.where(tm.notnull()).resample(valid_time='YE').sum(min_count=1)
+            .rename({'valid_time': 'year'}).assign_coords(year=years)
+            .drop_attrs()
+            .assign_attrs(long_name=long_name, units='days')
+            .rename(name)
+        )
+
+    logger.info("Calculations graph is ready. Call .compute() to run the actual calculations.")
+
+    return xr.Dataset(result)
+
+def calculate_TM_wide_bins(ds: xr.Dataset):
+    """
+    Input: t_mean [Grid, Day] - daily mean 2-metre temperature at the grid level
+    Output: 14 variables [Grid, Year] counting days falling in each 5°C-wide bin:
+            TM_below_m20  - t_mean < -20°C
+            TM_m20_to_m15 - -20 <= t_mean < -15°C
+            TM_m15_to_m10 - -15 <= t_mean < -10°C
+            TM_m10_to_m5  - -10 <= t_mean < -5°C
+            TM_m5_to_0    - -5 <= t_mean < 0°C
+            TM_0_to_5     - 0 <= t_mean < 5°C
+            TM_5_to_10    - 5 <= t_mean < 10°C
+            TM_10_to_15   - 10 <= t_mean < 15°C
+            TM_15_to_20   - 15 <= t_mean < 20°C
+            TM_20_to_25   - 20 <= t_mean < 25°C
+            TM_25_to_30   - 25 <= t_mean < 30°C
+            TM_30_to_35   - 30 <= t_mean < 35°C
+            TM_35_to_40   - 35 <= t_mean < 40°C
+            TM_above_40   - t_mean >= 40°C
+
+    Bins are left-inclusive, right-exclusive. Feb 29 is retained because thresholds are
+    not day-of-year specific.
+
+    Parameters
+    ----------
+    ds : xr.Dataset
+        Lazily-loaded ERA5 dataset containing `t_mean` with
+        a `valid_time` dimension (daily frequency).
+
+    Returns
+    -------
+    xr.Dataset
+        Lazy dataset with 14 TM_wide_bin variables and dimensions (year, latitude, longitude).
+    """
+    logger.info("Calculating TM wide bin counts (daily mean temperature distribution at grid cell level)")
+
+    if 't_mean' not in ds:
+        raise KeyError(f"'t_mean' not found in dataset. Available variables: {list(ds.data_vars)}")
+
+    years = np.unique(ds['valid_time'].dt.year.values)
+    tm = ds['t_mean']
+
+    bins = [
+        ('TM_below_m20',  None, -20, 'Number of days with daily mean temperature below -20°C'),
+        ('TM_m20_to_m15',  -20, -15, 'Number of days with daily mean temperature in [-20°C, -15°C)'),
+        ('TM_m15_to_m10',  -15, -10, 'Number of days with daily mean temperature in [-15°C, -10°C)'),
+        ('TM_m10_to_m5',   -10,  -5, 'Number of days with daily mean temperature in [-10°C, -5°C)'),
+        ('TM_m5_to_0',      -5,   0, 'Number of days with daily mean temperature in [-5°C, 0°C)'),
+        ('TM_0_to_5',        0,   5, 'Number of days with daily mean temperature in [0°C, 5°C)'),
+        ('TM_5_to_10',       5,  10, 'Number of days with daily mean temperature in [5°C, 10°C)'),
+        ('TM_10_to_15',     10,  15, 'Number of days with daily mean temperature in [10°C, 15°C)'),
+        ('TM_15_to_20',     15,  20, 'Number of days with daily mean temperature in [15°C, 20°C)'),
+        ('TM_20_to_25',     20,  25, 'Number of days with daily mean temperature in [20°C, 25°C)'),
+        ('TM_25_to_30',     25,  30, 'Number of days with daily mean temperature in [25°C, 30°C)'),
+        ('TM_30_to_35',     30,  35, 'Number of days with daily mean temperature in [30°C, 35°C)'),
+        ('TM_35_to_40',     35,  40, 'Number of days with daily mean temperature in [35°C, 40°C)'),
+        ('TM_above_40',     40, None, 'Number of days with daily mean temperature above 40°C'),
+    ]
+
+    result = {}
+    for name, lower, upper, long_name in bins:
+        if lower is None:
+            cond = tm < upper
+        elif upper is None:
+            cond = tm >= lower
+        else:
+            cond = (tm >= lower) & (tm < upper)
+
+        result[name] = (
+            cond.where(tm.notnull()).resample(valid_time='YE').sum(min_count=1)
+            .rename({'valid_time': 'year'}).assign_coords(year=years)
+            .drop_attrs()
+            .assign_attrs(long_name=long_name, units='days')
+            .rename(name)
+        )
+
+    logger.info("Calculations graph is ready. Call .compute() to run the actual calculations.")
+
+    return xr.Dataset(result)
+
+def calculate_TM_narrow_bins(ds: xr.Dataset):
+    """
+    Input: t_mean [Grid, Day] - daily mean 2-metre temperature at the grid level
+    Output: 52 variables [Grid, Year] counting days falling in each 1°C-wide bin:
+            TM_below_minus_15      - t_mean < -15°C
+            TM_minus14_to_minus15  - -15 <= t_mean < -14°C
+            TM_minus13_to_minus14  - -14 <= t_mean < -13°C
+            TM_minus12_to_minus13  - -13 <= t_mean < -12°C
+            TM_minus11_to_minus12  - -12 <= t_mean < -11°C
+            TM_minus10_to_minus11  - -11 <= t_mean < -10°C
+            TM_minus9_to_minus10   - -10 <= t_mean < -9°C
+            TM_minus8_to_minus9    - -9 <= t_mean < -8°C
+            TM_minus7_to_minus8    - -8 <= t_mean < -7°C
+            TM_minus6_to_minus7    - -7 <= t_mean < -6°C
+            TM_minus5_to_minus6    - -6 <= t_mean < -5°C
+            TM_minus4_to_minus5    - -5 <= t_mean < -4°C
+            TM_minus3_to_minus4    - -4 <= t_mean < -3°C
+            TM_minus2_to_minus3    - -3 <= t_mean < -2°C
+            TM_minus1_to_minus2    - -2 <= t_mean < -1°C
+            TM_minus1_to_0         - -1 <= t_mean < 0°C
+            TM_0_to_1              - 0 <= t_mean < 1°C
+            TM_1_to_2              - 1 <= t_mean < 2°C
+            TM_2_to_3              - 2 <= t_mean < 3°C
+            TM_3_to_4              - 3 <= t_mean < 4°C
+            TM_4_to_5              - 4 <= t_mean < 5°C
+            TM_5_to_6              - 5 <= t_mean < 6°C
+            TM_6_to_7              - 6 <= t_mean < 7°C
+            TM_7_to_8              - 7 <= t_mean < 8°C
+            TM_8_to_9              - 8 <= t_mean < 9°C
+            TM_9_to_10             - 9 <= t_mean < 10°C
+            TM_10_to_11            - 10 <= t_mean < 11°C
+            TM_11_to_12            - 11 <= t_mean < 12°C
+            TM_12_to_13            - 12 <= t_mean < 13°C
+            TM_13_to_14            - 13 <= t_mean < 14°C
+            TM_14_to_15            - 14 <= t_mean < 15°C
+            TM_15_to_16            - 15 <= t_mean < 16°C
+            TM_16_to_17            - 16 <= t_mean < 17°C
+            TM_17_to_18            - 17 <= t_mean < 18°C
+            TM_18_to_19            - 18 <= t_mean < 19°C
+            TM_19_to_20            - 19 <= t_mean < 20°C
+            TM_20_to_21            - 20 <= t_mean < 21°C
+            TM_21_to_22            - 21 <= t_mean < 22°C
+            TM_22_to_23            - 22 <= t_mean < 23°C
+            TM_23_to_24            - 23 <= t_mean < 24°C
+            TM_24_to_25            - 24 <= t_mean < 25°C
+            TM_25_to_26            - 25 <= t_mean < 26°C
+            TM_26_to_27            - 26 <= t_mean < 27°C
+            TM_27_to_28            - 27 <= t_mean < 28°C
+            TM_28_to_29            - 28 <= t_mean < 29°C
+            TM_29_to_30            - 29 <= t_mean < 30°C
+            TM_30_to_31            - 30 <= t_mean < 31°C
+            TM_31_to_32            - 31 <= t_mean < 32°C
+            TM_32_to_33            - 32 <= t_mean < 33°C
+            TM_33_to_34            - 33 <= t_mean < 34°C
+            TM_34_to_35            - 34 <= t_mean < 35°C
+            TM_above_35            - t_mean >= 35°C
+
+    Bins are left-inclusive, right-exclusive. Feb 29 is retained because thresholds are
+    not day-of-year specific.
+
+    Parameters
+    ----------
+    ds : xr.Dataset
+        Lazily-loaded ERA5 dataset containing `t_mean` with
+        a `valid_time` dimension (daily frequency).
+
+    Returns
+    -------
+    xr.Dataset
+        Lazy dataset with 52 TM_narrow_bin variables and dimensions (year, latitude, longitude).
+    """
+    logger.info("Calculating TM narrow bin counts (daily mean temperature distribution at grid cell level)")
+
+    if 't_mean' not in ds:
+        raise KeyError(f"'t_mean' not found in dataset. Available variables: {list(ds.data_vars)}")
+
+    years = np.unique(ds['valid_time'].dt.year.values)
+    tm = ds['t_mean']
+
+    bins = [
+        ('TM_below_minus_15',     None, -15, 'Number of days with daily mean temperature below -15°C'),
+        ('TM_minus14_to_minus15', -15,  -14, 'Number of days with daily mean temperature in [-15°C, -14°C)'),
+        ('TM_minus13_to_minus14', -14,  -13, 'Number of days with daily mean temperature in [-14°C, -13°C)'),
+        ('TM_minus12_to_minus13', -13,  -12, 'Number of days with daily mean temperature in [-13°C, -12°C)'),
+        ('TM_minus11_to_minus12', -12,  -11, 'Number of days with daily mean temperature in [-12°C, -11°C)'),
+        ('TM_minus10_to_minus11', -11,  -10, 'Number of days with daily mean temperature in [-11°C, -10°C)'),
+        ('TM_minus9_to_minus10',  -10,   -9, 'Number of days with daily mean temperature in [-10°C, -9°C)'),
+        ('TM_minus8_to_minus9',    -9,   -8, 'Number of days with daily mean temperature in [-9°C, -8°C)'),
+        ('TM_minus7_to_minus8',    -8,   -7, 'Number of days with daily mean temperature in [-8°C, -7°C)'),
+        ('TM_minus6_to_minus7',    -7,   -6, 'Number of days with daily mean temperature in [-7°C, -6°C)'),
+        ('TM_minus5_to_minus6',    -6,   -5, 'Number of days with daily mean temperature in [-6°C, -5°C)'),
+        ('TM_minus4_to_minus5',    -5,   -4, 'Number of days with daily mean temperature in [-5°C, -4°C)'),
+        ('TM_minus3_to_minus4',    -4,   -3, 'Number of days with daily mean temperature in [-4°C, -3°C)'),
+        ('TM_minus2_to_minus3',    -3,   -2, 'Number of days with daily mean temperature in [-3°C, -2°C)'),
+        ('TM_minus1_to_minus2',    -2,   -1, 'Number of days with daily mean temperature in [-2°C, -1°C)'),
+        ('TM_minus1_to_0',         -1,    0, 'Number of days with daily mean temperature in [-1°C, 0°C)'),
+        ('TM_0_to_1',               0,    1, 'Number of days with daily mean temperature in [0°C, 1°C)'),
+        ('TM_1_to_2',               1,    2, 'Number of days with daily mean temperature in [1°C, 2°C)'),
+        ('TM_2_to_3',               2,    3, 'Number of days with daily mean temperature in [2°C, 3°C)'),
+        ('TM_3_to_4',               3,    4, 'Number of days with daily mean temperature in [3°C, 4°C)'),
+        ('TM_4_to_5',               4,    5, 'Number of days with daily mean temperature in [4°C, 5°C)'),
+        ('TM_5_to_6',               5,    6, 'Number of days with daily mean temperature in [5°C, 6°C)'),
+        ('TM_6_to_7',               6,    7, 'Number of days with daily mean temperature in [6°C, 7°C)'),
+        ('TM_7_to_8',               7,    8, 'Number of days with daily mean temperature in [7°C, 8°C)'),
+        ('TM_8_to_9',               8,    9, 'Number of days with daily mean temperature in [8°C, 9°C)'),
+        ('TM_9_to_10',              9,   10, 'Number of days with daily mean temperature in [9°C, 10°C)'),
+        ('TM_10_to_11',            10,   11, 'Number of days with daily mean temperature in [10°C, 11°C)'),
+        ('TM_11_to_12',            11,   12, 'Number of days with daily mean temperature in [11°C, 12°C)'),
+        ('TM_12_to_13',            12,   13, 'Number of days with daily mean temperature in [12°C, 13°C)'),
+        ('TM_13_to_14',            13,   14, 'Number of days with daily mean temperature in [13°C, 14°C)'),
+        ('TM_14_to_15',            14,   15, 'Number of days with daily mean temperature in [14°C, 15°C)'),
+        ('TM_15_to_16',            15,   16, 'Number of days with daily mean temperature in [15°C, 16°C)'),
+        ('TM_16_to_17',            16,   17, 'Number of days with daily mean temperature in [16°C, 17°C)'),
+        ('TM_17_to_18',            17,   18, 'Number of days with daily mean temperature in [17°C, 18°C)'),
+        ('TM_18_to_19',            18,   19, 'Number of days with daily mean temperature in [18°C, 19°C)'),
+        ('TM_19_to_20',            19,   20, 'Number of days with daily mean temperature in [19°C, 20°C)'),
+        ('TM_20_to_21',            20,   21, 'Number of days with daily mean temperature in [20°C, 21°C)'),
+        ('TM_21_to_22',            21,   22, 'Number of days with daily mean temperature in [21°C, 22°C)'),
+        ('TM_22_to_23',            22,   23, 'Number of days with daily mean temperature in [22°C, 23°C)'),
+        ('TM_23_to_24',            23,   24, 'Number of days with daily mean temperature in [23°C, 24°C)'),
+        ('TM_24_to_25',            24,   25, 'Number of days with daily mean temperature in [24°C, 25°C)'),
+        ('TM_25_to_26',            25,   26, 'Number of days with daily mean temperature in [25°C, 26°C)'),
+        ('TM_26_to_27',            26,   27, 'Number of days with daily mean temperature in [26°C, 27°C)'),
+        ('TM_27_to_28',            27,   28, 'Number of days with daily mean temperature in [27°C, 28°C)'),
+        ('TM_28_to_29',            28,   29, 'Number of days with daily mean temperature in [28°C, 29°C)'),
+        ('TM_29_to_30',            29,   30, 'Number of days with daily mean temperature in [29°C, 30°C)'),
+        ('TM_30_to_31',            30,   31, 'Number of days with daily mean temperature in [30°C, 31°C)'),
+        ('TM_31_to_32',            31,   32, 'Number of days with daily mean temperature in [31°C, 32°C)'),
+        ('TM_32_to_33',            32,   33, 'Number of days with daily mean temperature in [32°C, 33°C)'),
+        ('TM_33_to_34',            33,   34, 'Number of days with daily mean temperature in [33°C, 34°C)'),
+        ('TM_34_to_35',            34,   35, 'Number of days with daily mean temperature in [34°C, 35°C)'),
+        ('TM_above_35',            35, None, 'Number of days with daily mean temperature above 35°C'),
     ]
 
     result = {}
@@ -5411,6 +5653,8 @@ WSD_abs = calculate_WSD_abs(ds, temp_perc[['TX_90p_5w']])
 TNnumber_TXnumber = calculate_TNnumber_TXnumber(ds)
 TX_cold = calculate_TX_cold_thresholds(ds)
 TM_bins = calculate_TM_bins(ds)
+TM_wide_bins = calculate_TM_wide_bins(ds)
+TM_narrow_bins = calculate_TM_narrow_bins(ds)
 PA = calculate_PA(ds)
 PWT = calculate_PWT(PW_d, ds)
 W = calculate_W(PW_d, ds)
@@ -5440,7 +5684,7 @@ CSD_abs_wy      = calculate_CSD_abs_wy(ds, temp_perc_wy[['TN5', 'TN10']])
 
 # Merge all lazy graphs into one dataset
 yearly_ds = xr.merge([TM, TX, TN, TNN_TXX, TVAR, DTR, coldwarm,
-                      day_hw, night_hw, day_cw, night_cw, CSD, WSD, TNnumber_TXnumber, TX_cold, TM_bins,
+                      day_hw, night_hw, day_cw, night_cw, CSD, WSD, TNnumber_TXnumber, TX_cold, TM_bins, TM_wide_bins, TM_narrow_bins,
                       coldwarm_abs, day_hw_abs, night_hw_abs, day_cw_abs, night_cw_abs, CSD_abs, WSD_abs,
                       PA, PWT, W, PWA, PVAR, PWVAR,
                       P95WT_P99WT, consec_counts, consec_totals,
@@ -5461,7 +5705,7 @@ for yr in yearly_ds['year'].values:
     del yr_ds
 
 del TM, TX, TN, TNN_TXX, TVAR, DTR, coldwarm
-del day_hw, night_hw, day_cw, night_cw, CSD, WSD, TNnumber_TXnumber, TX_cold, TM_bins
+del day_hw, night_hw, day_cw, night_cw, CSD, WSD, TNnumber_TXnumber, TX_cold, TM_bins, TM_wide_bins, TM_narrow_bins
 del coldwarm_abs, day_hw_abs, night_hw_abs, day_cw_abs, night_cw_abs, CSD_abs, WSD_abs
 del PA, PWT, W, PWA, PVAR, PWVAR
 del P95WT_P99WT, consec_counts, consec_totals, PX1_PX5, PXM_PNM, P_bins

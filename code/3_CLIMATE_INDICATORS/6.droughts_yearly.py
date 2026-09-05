@@ -80,7 +80,7 @@ MIN_DURATION = 3
 
 logger.info("Opening monthly ERA5 files (lazy)...")
 
-monthly_files = sorted(OUT_MONTHLY.glob("monthly_vars_[0-9]{4}.nc"))
+monthly_files = sorted(OUT_MONTHLY.glob("monthly_vars_[0-9][0-9][0-9][0-9].nc"))
 if not monthly_files:
     raise FileNotFoundError(f"No monthly_vars_YYYY.nc files found in {OUT_MONTHLY}")
 

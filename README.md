@@ -1,12 +1,12 @@
 # ERA5 Climate Indicators Pipeline
 
-This repository contains a end-to-end pipeline that:
+This repository contains an end-to-end pipeline that:
 
 1) Downloads hourly temperature and accumulated precipitation data from ERA5-Land reanalysis (globally, at 0.1° x 0.1° resolution, from 1950 to 2023) through the Copernicus Climate Data Store (CDS) API 
 
 2) Process it into harmonized daily observations (Tmax, Tmin, Tmean, total precipitation) for each grid cell 
 
-3) Computes 48+ yearly climate indicators at the grid cell level (0.1° x 0.1°) covering temperature, heatwaves, coldwaves, and precipitation statistics  
+3) Computes 350+ yearly climate indicators at the grid cell level (0.1° x 0.1°) covering temperature, heatwaves, coldwaves, precipitation statistics and droughts
 
 ## Reference
 
@@ -29,14 +29,17 @@ era5/
 │   │   └── api_calls_temp.py    
 │   ├── 2_AGGREGATING/           # Step 2 – join variables into harmonized files containg daily grid level data points
 │   │   └── aggregating.py
-│   ├── 3_CLIMATE_INDICATORS/    # Steps 3–6 – compute climate indicators
+│   ├── 3_CLIMATE_INDICATORS/    # Steps 3–8 – compute climate indicators (run in the order of the file prefixes)
 │   │   ├── 1.percentiles.py     
 │   │   ├── 2.daily.py           
 │   │   ├── 3.monthly.py         
-│   │   └── 4.yearly.py          
+│   │   ├── 4.droughts_monthly.R # Monthly SPI / SPEI indices (R)
+│   │   ├── 5.yearly.py          # Main script: all yearly indicators
+│   │   └── 6.droughts_yearly.py # Annual drought severity / duration
 │   └── MISCELLANEOUS/
-│       └── check_yearly.ipynb   # Notebook visualizing yearly indicators output
-│       └── test_notebook.ipynb  # Notebook used for debugging when writing the main scripts
+│       ├── check_yearly.ipynb              # Notebook visualizing yearly indicators output
+│       ├── plot_temp_percentiles.ipynb     # Notebook visualizing the percentile thresholds
+│       └── temp_precip_tx_distributions.py # Distribution plots of selected indicators
 |
 ├── data/
 │   ├── tmp/output_api/          # Stores raw API downloads
@@ -45,7 +48,8 @@ era5/
 │       ├── percentiles/         
 │       ├── daily/               
 │       ├── monthly/             
-│       └── yearly/              
+│       ├── yearly/              
+│       └── tmp_drought/         # Transient scratch space for Steps 6 and 8, deleted when they finish
 |
 └── era5.yml                     # Conda environment file
 ```
@@ -65,6 +69,8 @@ conda env create -f era5.yml
 ```bash
 conda activate era5
 ```
+
+The environment contains both the Python and the R stack, so the R drought step needs no separate setup.
 
 ---
 
@@ -105,13 +111,15 @@ Go to the `Download` tab, scroll down and accept the **"Terms of use"** while lo
 
 Run the scripts in the following order. Each step depends on the output of the previous one.
 
+**Important:** Steps 7 and 8 both write to `data/out/yearly/`, but they do it differently. Step 7 rewrites each yearly file from scratch, while Step 8 opens the existing file and merges its variables into it. Every rerun of Step 7 therefore erases the drought variables, and **Step 8 must always be rerun after Step 7**.
+
 ---
 
 ### Step 1 — Download ERA5 data from CDS
 
 **Scripts:** `code/1_API_ERA5/api_calls_prec.py` and `api_calls_temp.py`
 
-Downloads raw ERA5-Land Hourly data (1950–2024) with a 0.1° x 0.1° resolution from the CDS API, one file per year-month.
+Downloads raw ERA5-Land Hourly data (1950–2023) with a 0.1° x 0.1° resolution from the CDS API, one file per year-month.
 
 - `api_calls_prec.py` — downloads **total precipitation** at 00:00 UTC (which refers to total precipitation accumulated on day `d-1`). Output: one NetCDF per month in `data/tmp/output_api/total_precipitation` with one observation per day for each grid cell.
 - `api_calls_temp.py` — downloads **2-metre temperature** (hourly), then converts from Kelvin to Celsius and resamples to daily Tmax / Tmin / Tmean. Output: one NetCDF per month in `data/tmp/output_api/2m_temperature` with 3 data points (TX, TN, TM) per day for each grid cell.
@@ -132,10 +140,13 @@ Merges the temperature and precipitation data produced in Step 1 into single com
 
 **Script:** `code/3_CLIMATE_INDICATORS/1.percentiles.py`
 
-Computes percentile thresholds over the 1965–1994 reference period (can be changed as you wish) using a centred rolling window around each calendar day-of-year (for temperature), or simplying calculating a percentile value for the whole period (for precipitation). These thresholds are used by the subsequent scripts to classify extreme events.
+Computes percentile thresholds over the 1965–1994 reference period (can be changed as you wish). These thresholds are used by the subsequent scripts to classify extreme events. Three files are produced:
 
-- **Temperature** (5-day and 15-day windows): TN10p, TX10p, TN90p, TX90p → `data/out/percentiles/temp_percentiles.nc`
+- **Temperature, day-of-year percentiles** — computed on a centred rolling window (5-day and 15-day) around each calendar day, so the threshold varies through the year: TN10p, TX10p, TN90p, TX90p → `data/out/percentiles/temp_percentiles.nc`
+- **Temperature, whole-year percentiles** — a single threshold per grid cell computed over the whole reference period, with no day-of-year structure: TX90, TX95, TX97_5, TX99, TN1, TN2_5, TN5, TN10 → `data/out/percentiles/temp_percentiles_fullyear.nc`
 - **Precipitation** (wet days ≥ 1 mm): PW_95p, PW_99p → `data/out/percentiles/precip_percentiles.nc`
+
+The two temperature files are what distinguishes the day-of-year indicator families from the whole-year (`_wy`) families in Step 7.
 
 ---
 
@@ -168,41 +179,85 @@ Aggregates daily variables to monthly level. Outputs one file per year (`monthly
 | `TX_m`   | Monthly mean of daily Tmax |
 | `TN_m`   | Monthly mean of daily Tmin |
 
+`P_jm` feeds the yearly precipitation indicators; all three feed the drought indices in the next step.
+
 ---
 
-### Step 6 — Compute yearly indicators
+### Step 6 — Compute monthly drought indices (R)
 
-**Script:** `code/3_CLIMATE_INDICATORS/4.yearly.py`
+**Script:** `code/3_CLIMATE_INDICATORS/4.droughts_monthly.R`
 
-The main output of the pipeline. Computes 48 yearly climate indicators per grid cell and saves them as `yearly_vars_{YEAR}.nc` in `data/out/yearly/`. Indicators include:
+The only R step in the pipeline. Computes standardized drought indices from the monthly files and **appends them in place** to `monthly_vars_{YEAR}.nc`:
 
-**Temperature**
-`TM`, `TX`, `TN`, `TNN`, `TXX`, `TVAR`, `DTR`
+- **SPI** (Standardized Precipitation Index) — from `P_jm`, fitted with a Gamma distribution.
+- **SPEI** (Standardized Precipitation-Evapotranspiration Index) — from the water balance `P_jm − PET`, fitted with a log-Logistic distribution. PET is computed with the **Hargreaves** formula from `TX_m`, `TN_m` and extraterrestrial radiation derived from latitude and day of year.
 
-**Cold/warm day and night counts**
-`CN10`, `CD10`, `WN90`, `WD90`
+Both are computed at 3, 6 and 12-month accumulation scales (`spi_3`, `spi_6`, `spi_12`, `spei_3`, `spei_6`, `spei_12`), calibrated on 1965–1994 so the indices express anomalies relative to a fixed baseline. Shorter scales capture fast-onset agricultural drought, longer scales slower hydrological drought.
 
-**Heatwaves** (≥ 3 consecutive days above the 90th percentile)
-`DDHW`, `LDHW`, `NDHW`, `TDHW` (daytime) · `DNHW`, `LNHW`, `NNHW`, `TNHW` (nighttime)
+---
 
-**Coldwaves** (≥ 3 consecutive days below the 10th percentile)
-`DDCW`, `LDCW`, `NDCW`, `TDCW` (daytime) · `DNCW`, `LNCW`, `NNCW`, `TNCW` (nighttime)
+### Step 7 — Compute yearly indicators
 
-**Spell durations**
-`CSD` (cold spell), `WSD` (warm spell)
+**Script:** `code/3_CLIMATE_INDICATORS/5.yearly.py`
+
+The main output of the pipeline. Computes ~320 yearly climate indicators per grid cell and saves them as `yearly_vars_{YEAR}.nc` in `data/out/yearly/`. Rather than listing every variable, the families are described below; the exact variable names, thresholds and definitions are documented in the docstring of each `calculate_*` function in the script.
+
+**Temperature level and spread**
+`TM`, `TX`, `TN` (annual means), `TNN` / `TXX` (coldest night / hottest day), `TVAR` (temperature variance), `DTR` (diurnal temperature range).
+
+**Cold/warm nights and days** — counts of days beyond a day-of-year percentile threshold
+`CN10`, `CD10`, `WN90`, `WD90`.
+
+**Heatwaves and coldwaves** — runs of ≥ 3 consecutive days beyond a day-of-year percentile threshold, computed separately for daytime (Tmax) and nighttime (Tmin). Each of the four combinations yields the same four metrics: total days in events, length of the longest event, number of events, and cumulative intensity — e.g. `DDHW`, `LDHW`, `NDHW`, `TDHW` for day heatwaves, with the corresponding `DNHW` / `LNHW` / `NNHW` / `TNHW` for night heatwaves and the `*CW` equivalents for coldwaves.
+
+**Spell durations** — runs of ≥ 6 consecutive days beyond a day-of-year percentile threshold
+`CSD` (cold spell), `WSD` (warm spell).
+
+**Absolute-threshold variants** (suffix `_XXC`, e.g. `WD90_35C`, `DDHW_30C`, `CSD_15C`)
+The same cold/warm counts, heatwaves, coldwaves and spells as above, but requiring the day to cross **both** the percentile threshold **and** an absolute temperature threshold. This filters out events that are locally anomalous but not physically extreme (a "heatwave" at 12°C in a cold climate, for instance).
+
+**Whole-year percentile variants** (suffix `_wy`)
+The same families again, but thresholds come from the whole-year percentiles (`TX90`…`TX99`, `TN1`…`TN10`) instead of the day-of-year rolling percentiles — so an event is measured against the full annual distribution rather than against what is normal for that calendar day. Combined absolute + whole-year percentile versions also exist (e.g. `WSD95_20C_wy`, `TDHW99_30C_wy`).
+
+**Fixed-threshold day counts**
+Warm side: `TX30`, `TX35`, `TX40`. Cold side: `TN0`, `TNm5`, `TNm10` (on Tmin) and `TX10`, `TX5`, `TX0`, `TXm5`, `TXm10` (on Tmax).
+
+**Temperature distribution bins** — day counts per temperature interval, left-inclusive and right-exclusive, in three overlapping resolutions of the same distribution: 3°C-wide (19 bins), 5°C-wide (14 bins) and 1°C-wide (52 bins), each with open-ended bins at both tails.
 
 **Precipitation**
-`PA`, `PWT`, `W`, `PWA`, `PVAR`, `PWVAR`, `P95WT`, `P99WT`, `CDD`, `CWD`, `C95WD`, `C99WD`, `PCWD`, `PC95WD`, `PC99WD`, `PX1`, `PX5`, `PXM`, `PNM`
+Levels and variability (`PA`, `PWT`, `W`, `PWA`, `PVAR`, `PWVAR`); wet-day extremes (`P95WT`, `P99WT`); consecutive dry/wet spells and their totals (`CDD`, `CWD`, `C95WD`, `C99WD`, `PCWD`, `PC95WD`, `PC99WD`); maxima and minima (`PX1`, `PX5`, `PXM`, `PNM`); and daily precipitation bins (`P_1_to_10`, `P_10_to_20`, `P_above_20`).
 
 ---
 
-### Optional — Visualize yearly output to check for soundness
+### Step 8 — Compute yearly drought indicators
+
+**Script:** `code/3_CLIMATE_INDICATORS/6.droughts_yearly.py`
+
+Reads the monthly SPI/SPEI indices from Step 6 and **merges 36 annual drought variables into the existing** `yearly_vars_{YEAR}.nc` files.
+
+A drought event is a run of at least **3 consecutive months** with the index at or below a threshold, detected over the full multi-year series so that events crossing a December–January boundary count as one continuous event. Three severity tiers are used: normal (`≤ -1.0`, suffix `_n`), severe (`≤ -1.5`, suffix `_s`) and extreme (`≤ -2.0`, suffix `_x`).
+
+For each of the 6 indices × 3 tiers, two variables are produced:
+
+| Variable | Description |
+|----------|-------------|
+| `{index}_sev_{tier}` | Annual drought severity — sum of the absolute index values over qualifying drought months |
+| `{index}_dur_{tier}` | Annual drought duration — count of qualifying drought months |
+
+The script writes intermediate masked monthly files to `data/out/tmp_drought/` and skips any that already exist, so an interrupted run can be resumed cheaply. They are deleted when the script completes.
+
+---
+
+### Optional — Visualize output to check for soundness
 
 **Notebook:** `code/MISCELLANEOUS/check_yearly.ipynb`
 
-Loads all yearly output files, averages across years, and produces two plots saved alongside the notebook:
+Loads all yearly output files, averages across years, and produces global and Europe-focused maps of every variable in the dataset (saved as PNGs alongside the notebook), plus comparison plots between the percentile-based, absolute-threshold and whole-year variants of the same families. Also prints a sanity-check table with global min / max / mean and NaN fraction per variable.
 
-- `yearly_overview.png` — all 48 variables on a global map (~1° resolution)
-- `yearly_europe.png` — all 48 variables zoomed into Europe (~0.2° resolution)
+**Notebook:** `code/MISCELLANEOUS/plot_temp_percentiles.ipynb`
 
-Also prints a sanity-check table with global min / max / mean and NaN fraction per variable.
+Maps the reference percentile thresholds produced in Step 3.
+
+**Script:** `code/MISCELLANEOUS/temp_precip_tx_distributions.py`
+
+Distribution plots of selected temperature and precipitation indicators from the regression-ready dataset.
